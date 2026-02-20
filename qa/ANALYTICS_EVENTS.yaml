@@ -1,0 +1,23 @@
+events:
+- name: session_start
+  props:
+  - platform
+  - app_version
+- name: run_start
+  props:
+  - run_id
+  - pet_level
+- name: run_end
+  props:
+  - run_id
+  - score
+  - duration_sec
+- name: reward_ad_complete
+  props:
+  - placement
+  - reward_type
+- name: iap_success
+  props:
+  - product_id
+  - price
+  - currency
