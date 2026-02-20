@@ -1,27 +1,24 @@
 # Scope
-- Unity 2D mobile portrait game, cute casual style.
-- Core loop: Start run -> dodge/collect -> score -> fail -> reward/retry -> progression.
-- Monetization: rewarded ad (continue/reward), interstitial (between runs), IAP (remove ads + coin pack).
-- Deliverables: task plan, UI flow/screens/components, one first-task implementation patch.
+- Mobile 2D casual game based on: 게임 만들어줘: ai를키우는 게임 모바일 2D, 광고+인앱결제
+- Core loop: start run -> interact/collect -> fail/success -> rewards -> retry.
+- Monetization: rewarded ads, interstitial ads, and IAP.
+- Deliverables: task plan, UI specs, art/story/QA docs, and first-task patch.
 
 # Non-Goals
-- Full production art pipeline.
-- Backend account/auth system.
-- LiveOps events, battle pass, social features.
-- Final balancing for retention/LTV.
+- Backend live service and account systems.
+- Final economy balancing and full content production.
+- Platform store submission assets.
 
 # Quality Gates
-- Build: Unity Android build succeeds in CI and local.
-- Test: basic playmode smoke test for boot, start run, fail, retry.
-- Lint: C# analyzers/format checks pass.
-- Secret-scan: no API keys or signing secrets in repo/history.
+- Build: no syntax/runtime errors in generated scripts and docs.
+- Test: smoke checks for first loop and failure/retry flow.
+- Lint: YAML/JSON parse successfully.
+- Secret-scan: no API keys or secrets in generated files.
 
 # Done Checklist
-- [ ] `docs/TASKS.yaml` exists and task dependencies are coherent.
-- [ ] `ui/flows.md` includes happy path, fail path, ad path, error states.
-- [ ] `ui/screens.md` defines required screens and interaction states.
-- [ ] `ui/components.json` is valid JSON and implementable in Unity uGUI.
-- [ ] `patches/changes.patch` applies cleanly with `git apply`.
-- [ ] First playable task is represented in patch and testable locally.
-- [ ] Ads/IAP are stubbed with clear integration points.
-- [ ] No secrets committed; repository passes secret scan.
+- [ ] tasks are dependency-consistent.
+- [ ] UI flows/screens/components exist and are coherent.
+- [ ] art direction + asset list exist.
+- [ ] story bible + dialogue pack exist.
+- [ ] QA plan/test cases/release checklist exist.
+- [ ] first task patch file exists and can be reviewed/applied.

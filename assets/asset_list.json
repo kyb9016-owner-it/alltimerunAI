@@ -1,0 +1,6 @@
+{
+  "characters": ["ai_pet_base", "ai_pet_happy", "ai_pet_tired"],
+  "ui": ["btn_primary", "btn_secondary", "panel_card", "icon_coin", "icon_ad"],
+  "environment": ["bg_layer_1", "bg_layer_2", "obstacle_set_a", "pickup_set_a"],
+  "fx": ["fx_collect", "fx_fail", "fx_levelup"]
+}

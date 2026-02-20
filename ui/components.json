@@ -4,43 +4,34 @@
       "id": "btn_start",
       "type": "Button",
       "screen": "Home",
-      "states": ["enabled", "pressed", "disabled"],
       "action": "start_run"
     },
     {
       "id": "hud_score",
       "type": "Text",
       "screen": "In-Run HUD",
-      "states": ["default"],
       "binding": "run.score"
     },
     {
-      "id": "modal_continue_ad",
+      "id": "modal_continue",
       "type": "Modal",
       "screen": "Fail/Continue Modal",
-      "states": ["ad_ready", "ad_unavailable"],
-      "actions": ["watch_reward_ad", "decline_continue"]
+      "actions": [
+        "watch_ad",
+        "skip"
+      ]
     },
     {
       "id": "btn_retry",
       "type": "Button",
       "screen": "Result",
-      "states": ["enabled", "pressed", "disabled"],
-      "action": "retry_run"
+      "action": "retry"
     },
     {
       "id": "iap_remove_ads",
       "type": "IAPCard",
       "screen": "Shop",
-      "states": ["available", "purchased", "error"],
       "productId": "remove_ads"
-    },
-    {
-      "id": "iap_coin_pack_small",
-      "type": "IAPCard",
-      "screen": "Shop",
-      "states": ["available", "purchased", "error"],
-      "productId": "coin_pack_small"
     }
   ]
 }

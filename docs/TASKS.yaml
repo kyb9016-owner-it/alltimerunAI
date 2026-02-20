@@ -1,88 +1,56 @@
 tasks:
-  - id: T001
-    owner: pm
-    title: Define MVP loop and economy boundaries
-    inputs:
-      - user_request
-    outputs:
-      - docs/ACCEPTANCE.md
-      - docs/game-brief.md
-    dependencies: []
-
-  - id: T002
-    owner: ui
-    title: Map core player flow and fail/retry path
-    inputs:
-      - docs/game-brief.md
-    outputs:
-      - ui/flows.md
-    dependencies:
-      - T001
-
-  - id: T003
-    owner: ui
-    title: Specify screen wire specs for mobile portrait
-    inputs:
-      - ui/flows.md
-      - docs/game-brief.md
-    outputs:
-      - ui/screens.md
-      - ui/components.json
-    dependencies:
-      - T002
-
-  - id: T004
-    owner: coder
-    title: Implement Unity scene skeleton and game state machine
-    inputs:
-      - docs/game-brief.md
-      - ui/flows.md
-    outputs:
-      - patches/changes.patch
-    dependencies:
-      - T001
-
-  - id: T005
-    owner: coder
-    title: Add reward ad and interstitial hook points
-    inputs:
-      - docs/game-brief.md
-      - docs/ACCEPTANCE.md
-    outputs:
-      - patches/changes.patch
-    dependencies:
-      - T004
-
-  - id: T006
-    owner: coder
-    title: Add IAP remove-ads and coin-pack stub integration
-    inputs:
-      - docs/game-brief.md
-      - docs/ACCEPTANCE.md
-    outputs:
-      - patches/changes.patch
-    dependencies:
-      - T005
-
-  - id: T007
-    owner: coder
-    title: Implement first playable task with basic scoring and retry
-    inputs:
-      - ui/screens.md
-      - ui/components.json
-      - docs/ACCEPTANCE.md
-    outputs:
-      - patches/changes.patch
-    dependencies:
-      - T004
-
-  - id: T008
-    owner: pm
-    title: Validate acceptance checklist and release candidate tag
-    inputs:
-      - docs/ACCEPTANCE.md
-      - patches/changes.patch
-    outputs:
-      - docs/release-notes.md
-    dependencies:
-      - T007
+- id: T001
+  owner: ui
+  title: Create core UI flow and screen spec
+  inputs:
+  - docs/ACCEPTANCE.md
+  outputs:
+  - ui/flows.md
+  - ui/screens.md
+  - ui/components.json
+  dependencies: []
+- id: T002
+  owner: art
+  title: Define art direction and base asset list
+  inputs:
+  - ui/screens.md
+  outputs:
+  - assets/ART_DIRECTION.md
+  - assets/asset_list.json
+  dependencies:
+  - T001
+- id: T003
+  owner: story
+  title: Define world and character dialogue pack
+  inputs:
+  - ui/flows.md
+  outputs:
+  - story/STORY_BIBLE.md
+  - story/DIALOGUES.md
+  dependencies:
+  - T001
+- id: T004
+  owner: qa
+  title: Generate QA plan and release checklist
+  inputs:
+  - docs/ACCEPTANCE.md
+  - ui/flows.md
+  - ui/screens.md
+  outputs:
+  - qa/TEST_PLAN.md
+  - qa/TEST_CASES.yaml
+  - qa/RELEASE_CHECKLIST.md
+  dependencies:
+  - T001
+- id: T005
+  owner: coder
+  title: Create first playable task patch
+  inputs:
+  - docs/TASKS.yaml
+  - docs/ACCEPTANCE.md
+  - ui/screens.md
+  outputs:
+  - patches/changes.patch
+  dependencies:
+  - T001
+  - T004

@@ -1,0 +1,5 @@
+First playable task scaffold (local template mode)
+- Define state: HOME -> RUNNING -> RESULT
+- Track score and retry count
+- Add one smoke test entry in qa plan
+- Replace this scaffold with production diff in API mode

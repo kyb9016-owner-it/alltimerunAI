@@ -1,0 +1,27 @@
+cases:
+- id: QA-001
+  title: Start run from home
+  steps:
+  - Open app
+  - Tap Start
+  expected: Run scene starts
+- id: QA-002
+  title: Fail and retry loop
+  steps:
+  - Start run
+  - Trigger fail
+  - Tap Retry
+  expected: New run starts
+- id: QA-003
+  title: Reward ad fallback
+  steps:
+  - Fail
+  - Open continue modal
+  - Ad unavailable
+  expected: User can continue via normal retry path
+- id: QA-004
+  title: IAP remove ads toggle
+  steps:
+  - Open shop
+  - Purchase remove_ads
+  expected: Interstitial disabled
