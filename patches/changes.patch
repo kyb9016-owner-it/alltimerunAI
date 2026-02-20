@@ -1,0 +1,75 @@
+diff --git a/orchestrator/game_state.py b/orchestrator/game_state.py
+new file mode 100644
+index 0000000..9ebd06d
+--- /dev/null
++++ b/orchestrator/game_state.py
+@@ -0,0 +1,41 @@
++from dataclasses import dataclass
++from enum import Enum
++
++
++class RunState(str, Enum):
++    HOME = "home"
++    RUNNING = "running"
++    FAILED = "failed"
++    RESULT = "result"
++
++
++@dataclass
++class GameSession:
++    state: RunState = RunState.HOME
++    score: int = 0
++    best_score: int = 0
++    coins: int = 0
++
++    def start_run(self) -> None:
++        self.state = RunState.RUNNING
++        self.score = 0
++
++    def add_score(self, value: int) -> None:
++        if self.state != RunState.RUNNING:
++            return
++        if value > 0:
++            self.score += value
++
++    def fail(self) -> None:
++        if self.state != RunState.RUNNING:
++            return
++        self.state = RunState.FAILED
++
++    def finalize_run(self) -> None:
++        if self.state not in (RunState.FAILED, RunState.RUNNING):
++            return
++        self.state = RunState.RESULT
++        self.best_score = max(self.best_score, self.score)
++
++    def retry(self) -> None:
++        self.start_run()
+diff --git a/qa/test_game_state.py b/qa/test_game_state.py
+new file mode 100644
+index 0000000..d65f775
+--- /dev/null
++++ b/qa/test_game_state.py
+@@ -0,0 +1,22 @@
++from orchestrator.game_state import GameSession, RunState
++
++
++def test_run_loop_retry_updates_best_score():
++    s = GameSession()
++
++    s.start_run()
++    s.add_score(12)
++    s.add_score(8)
++    s.fail()
++    s.finalize_run()
++
++    assert s.state == RunState.RESULT
++    assert s.score == 20
++    assert s.best_score == 20
++
++    s.retry()
++    assert s.state == RunState.RUNNING
++    assert s.score == 0
++    s.add_score(5)
++    s.finalize_run()
++    assert s.best_score == 20
