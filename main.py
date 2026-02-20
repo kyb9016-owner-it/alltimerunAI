@@ -86,6 +86,103 @@ def _extract_files(block: str):
     return re.findall(FILE_BLOCK_PATTERN, block, re.DOTALL)
 
 
+def _strip_fence(text: str) -> str:
+    stripped = text.strip()
+    if stripped.startswith("```") and stripped.endswith("```"):
+        lines = stripped.splitlines()
+        if len(lines) >= 3:
+            return "\n".join(lines[1:-1]).strip() + "\n"
+    return text
+
+
+def _sanitize_yaml_text(raw: str) -> str:
+    # Repair common model-output YAML issues where scalar values contain ": "
+    # but are not quoted (e.g. title: A -> B: C).
+    repaired_lines: List[str] = []
+    key_value = re.compile(r"^(\s*[-]?\s*[A-Za-z0-9_\"'/-]+\s*:\s*)(.+?)\s*$")
+
+    for line in raw.splitlines():
+        match = key_value.match(line)
+        if not match:
+            repaired_lines.append(line)
+            continue
+
+        prefix, value = match.groups()
+        stripped = value.strip()
+
+        # Already safe or structural YAML value.
+        if (
+            stripped == ""
+            or stripped.startswith(("'", '"', "{", "[", "|", ">"))
+            or stripped in {"true", "false", "null", "~"}
+            or re.fullmatch(r"-?\d+(\.\d+)?", stripped)
+        ):
+            repaired_lines.append(line)
+            continue
+
+        # If scalar includes colon-space, quote it.
+        if ": " in stripped:
+            safe = stripped.replace("\\", "\\\\").replace('"', '\\"')
+            repaired_lines.append(f'{prefix}"{safe}"')
+        else:
+            repaired_lines.append(line)
+
+    return "\n".join(repaired_lines) + ("\n" if raw.endswith("\n") else "")
+
+
+def _fallback_extract_tasks_from_text(raw: str) -> List[Dict]:
+    # Last-resort parser for malformed YAML emitted by models.
+    # It scans task-like "- id:" blocks and derives owner/title heuristically.
+    lines = raw.splitlines()
+    results: List[Dict] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = re.match(r"^\s*-\s+id:\s*([A-Za-z0-9_-]+)\s*$", line)
+        if not m:
+            i += 1
+            continue
+
+        task_id = m.group(1).strip()
+
+        owner = "coder"
+        title = task_id
+        saw_task_signal = False
+        j = i + 1
+        while j < len(lines):
+            cur = lines[j]
+            if re.match(r"^\s*-\s+id:\s*[A-Za-z0-9_-]+\s*$", cur):
+                break
+            om = re.match(r"^\s*owner:\s*(.+?)\s*$", cur)
+            if om:
+                owner = om.group(1).strip().strip('"').strip("'")
+                saw_task_signal = True
+            tm = re.match(r"^\s*title:\s*(.+?)\s*$", cur)
+            if tm:
+                title = tm.group(1).strip().strip('"').strip("'")
+                saw_task_signal = True
+            dm = re.match(r"^\s*desc:\s*(.+?)\s*$", cur)
+            if dm and title == task_id:
+                title = dm.group(1).strip().strip('"').strip("'")
+                saw_task_signal = True
+            j += 1
+
+        # Skip non-task IDs (e.g. milestone/epic) that don't look like real work items.
+        if saw_task_signal:
+            results.append(
+                {
+                    "id": task_id,
+                    "owner": owner,
+                    "title": title,
+                    "dependencies": [],
+                    "inputs": [],
+                    "outputs": [],
+                }
+            )
+        i = j
+    return results
+
+
 def ask(instructions: str, user_input: str) -> str:
     global client
     if client is None:
@@ -548,10 +645,125 @@ def run_pm_bootstrap_local(game_request: str) -> None:
 
 
 def _normalize_tasks(data) -> List[Dict]:
+    def map_owner_label(owner_value: str) -> str:
+        label = owner_value.strip().lower()
+        if "/" in label:
+            label = label.split("/")[0].strip()
+        normalized = re.sub(r"[^a-z]", "", label)
+        alias = {
+            "pm": "pm",
+            "product manager": "pm",
+            "technical writer": "pm",
+            "developer advocate": "pm",
+            "uiux": "ui",
+            "ui": "ui",
+            "ui/ux": "ui",
+            "ui designer": "ui",
+            "art": "art",
+            "artist": "art",
+            "techart": "art",
+            "story": "story",
+            "writer": "story",
+            "qa": "qa",
+            "qa engineer": "qa",
+            "security engineer": "qa",
+            "coder": "coder",
+            "eng": "coder",
+            "backend engineer": "coder",
+            "architect": "coder",
+            "tech lead": "coder",
+            "devops": "coder",
+            "sre": "coder",
+            "unity": "unity",
+            "monetization": "monetization",
+            "progression": "progression",
+            "analytics": "analytics",
+            "balance": "balance",
+            "release": "release",
+            "engineering": "coder",
+            "design": "balance",
+            "audio": "art",
+            "art/engineering": "art",
+            "engineering/qa": "qa",
+        }
+        if label in alias:
+            return alias[label]
+        if normalized in alias:
+            return alias[normalized]
+
+        # Keyword-based fallback mapping for arbitrary title formats.
+        if any(k in normalized for k in ["pm", "product", "writer", "advocate"]):
+            return "pm"
+        if any(k in normalized for k in ["ui", "ux"]):
+            return "ui"
+        if any(k in normalized for k in ["art", "vfx", "audio", "sound"]):
+            return "art"
+        if any(k in normalized for k in ["story", "narrative"]):
+            return "story"
+        if any(k in normalized for k in ["qa", "test", "quality"]):
+            return "qa"
+        if any(k in normalized for k in ["unity"]):
+            return "unity"
+        if any(k in normalized for k in ["monet", "iap", "ads"]):
+            return "monetization"
+        if any(k in normalized for k in ["progress", "save"]):
+            return "progression"
+        if any(k in normalized for k in ["analytic", "telemetry", "data"]):
+            return "analytics"
+        if any(k in normalized for k in ["balance", "design"]):
+            return "balance"
+        if any(k in normalized for k in ["release", "ops", "devops", "sre"]):
+            return "release"
+        if any(k in normalized for k in ["engineer", "eng", "developer", "tech", "system", "gameplay", "architect"]):
+            return "coder"
+
+        return label
+
+    def flatten_from_epics(root: Dict) -> List[Dict]:
+        flattened: List[Dict] = []
+        for epic in root.get("epics", []) or []:
+            epic_owner = map_owner_label(str(epic.get("owner", "coder")))
+            # Format A: epics -> tasks
+            for task in epic.get("tasks", []) or []:
+                if not isinstance(task, dict):
+                    continue
+                task_id = str(task.get("id", f"T{len(flattened)+1}")).strip()
+                owner = map_owner_label(str(task.get("owner", epic_owner)))
+                flattened.append(
+                    {
+                        "id": task_id,
+                        "owner": owner,
+                        "title": str(task.get("title", epic.get("name", ""))).strip(),
+                        "dependencies": [],
+                        "inputs": [],
+                        "outputs": DEFAULT_OWNER_OUTPUTS.get(owner, []),
+                    }
+                )
+            # Format B: epics -> stories -> tasks
+            for story in epic.get("stories", []) or []:
+                for task in story.get("tasks", []) or []:
+                    if not isinstance(task, dict):
+                        continue
+                    task_id = str(task.get("id", f"T{len(flattened)+1}")).strip()
+                    owner = map_owner_label(str(task.get("owner", epic_owner)))
+                    flattened.append(
+                        {
+                            "id": task_id,
+                            "owner": owner,
+                            "title": str(task.get("title", "")).strip(),
+                            "dependencies": [],
+                            "inputs": [],
+                            "outputs": DEFAULT_OWNER_OUTPUTS.get(owner, []),
+                        }
+                    )
+        return flattened
+
     if isinstance(data, dict) and isinstance(data.get("tasks"), list):
         tasks = data["tasks"]
     elif isinstance(data, list):
         tasks = data
+    elif isinstance(data, dict) and isinstance(data.get("epics"), list):
+        tasks = flatten_from_epics(data)
     else:
         raise RuntimeError("docs/TASKS.yaml must be a list or contain a top-level 'tasks' list.")
 
@@ -562,7 +774,7 @@ def _normalize_tasks(data) -> List[Dict]:
         if "id" not in task or "owner" not in task:
             raise RuntimeError(f"TASKS.yaml task at index {idx} requires 'id' and 'owner'.")
         task_id = str(task["id"]).strip()
-        owner = str(task["owner"]).strip()
+        owner = map_owner_label(str(task["owner"]))
         dependencies = task.get("dependencies", [])
         inputs = task.get("inputs", [])
         outputs = task.get("outputs", [])
@@ -585,8 +797,17 @@ def load_tasks() -> List[Dict]:
     tasks_path = DOCS / "TASKS.yaml"
     if not tasks_path.exists():
         raise RuntimeError("docs/TASKS.yaml not found after PM bootstrap.")
-    parsed = yaml.safe_load(_read(tasks_path))
-    tasks = _normalize_tasks(parsed)
+    raw = _read(tasks_path)
+    try:
+        parsed = yaml.safe_load(raw)
+        tasks = _normalize_tasks(parsed)
+    except yaml.YAMLError:
+        repaired = _sanitize_yaml_text(raw)
+        try:
+            parsed = yaml.safe_load(repaired)
+            tasks = _normalize_tasks(parsed)
+        except Exception:
+            tasks = _normalize_tasks(_fallback_extract_tasks_from_text(raw))
     if not tasks:
         raise RuntimeError("docs/TASKS.yaml has no tasks to execute.")
     return tasks
@@ -666,12 +887,27 @@ Return content in file blocks, exactly:
     output = ask(instructions, prompt)
     files = _extract_files(output)
     if not files:
+        # Retry once with stricter formatting instruction.
+        retry_prompt = (
+            prompt
+            + "\nIMPORTANT: Return ONLY file blocks. No prose. No explanations. "
+            + "Use the exact paths in outputs.\n"
+        )
+        output = ask(instructions, retry_prompt)
+        files = _extract_files(output)
+
+    # Fallback: if still no file blocks and only one output is expected,
+    # treat the whole model output as that file content.
+    if not files and len(requested_outputs) == 1:
+        files = [(requested_outputs[0], _strip_fence(output).rstrip())]
+
+    if not files:
         raise RuntimeError(f"Owner '{owner}' task '{task['id']}' did not include file blocks.")
 
     written: Set[str] = set()
     for rel_path, content in files:
         normalized = rel_path.strip()
-        _write(ROOT / normalized, content.rstrip() + "\n")
+        _write(ROOT / normalized, _strip_fence(content).rstrip() + "\n")
         written.add(normalized)
 
     missing = [rel for rel in requested_outputs if rel not in written]
