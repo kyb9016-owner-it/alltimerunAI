@@ -1,0 +1,9 @@
+version: 1
+profile:
+  coins: 0
+  best_score: 0
+  remove_ads: false
+progression:
+  pet_level: 1
+  xp: 0
+  unlocked_features: []

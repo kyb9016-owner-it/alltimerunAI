@@ -32,6 +32,27 @@ OWNER_INSTRUCTIONS = {
     "story": ROOT / "agents/story.md",
     "qa": ROOT / "agents/qa.md",
     "coder": ROOT / "agents/coder.md",
+    "unity": ROOT / "agents/unity.md",
+    "monetization": ROOT / "agents/monetization.md",
+    "progression": ROOT / "agents/progression.md",
+    "analytics": ROOT / "agents/analytics.md",
+    "balance": ROOT / "agents/balance.md",
+    "release": ROOT / "agents/release.md",
+}
+
+OWNER_SKILLS = {
+    "pm": "pm-orchestrate",
+    "ui": "ui-spec",
+    "art": "art-direction",
+    "story": "story-pack",
+    "qa": "qa-plan",
+    "coder": "coder-implement",
+    "unity": "unity-implementation",
+    "monetization": "monetization-ads-iap",
+    "progression": "save-progression",
+    "analytics": "analytics-telemetry",
+    "balance": "playtest-balance",
+    "release": "release-ops",
 }
 
 DEFAULT_OWNER_OUTPUTS = {
@@ -41,6 +62,12 @@ DEFAULT_OWNER_OUTPUTS = {
     "story": ["story/STORY_BIBLE.md", "story/DIALOGUES.md"],
     "qa": ["qa/TEST_PLAN.md", "qa/TEST_CASES.yaml", "qa/RELEASE_CHECKLIST.md"],
     "coder": ["patches/changes.patch"],
+    "unity": ["patches/unity_changes.patch"],
+    "monetization": ["docs/MONETIZATION_PLAN.md", "docs/MONETIZATION_STATES.yaml"],
+    "progression": ["docs/PROGRESSION_SCHEMA.yaml", "docs/SAVE_POLICY.md"],
+    "analytics": ["qa/ANALYTICS_EVENTS.yaml", "docs/KPI_DASHBOARD.md"],
+    "balance": ["docs/BALANCE_MATRIX.yaml", "qa/PLAYTEST_SCRIPT.md"],
+    "release": ["docs/RELEASE_PLAN.md", "qa/GO_NO_GO_CHECKLIST.md"],
 }
 
 FILE_BLOCK_PATTERN = r"--- file:\s*(.+?)\s*---\n(.*?)\n--- end ---"
@@ -108,11 +135,59 @@ def _template_tasks_yaml() -> str:
             },
             {
                 "id": "T005",
+                "owner": "monetization",
+                "title": "Create monetization state and integration plan",
+                "inputs": ["docs/ACCEPTANCE.md", "ui/flows.md"],
+                "outputs": ["docs/MONETIZATION_PLAN.md", "docs/MONETIZATION_STATES.yaml"],
+                "dependencies": ["T001"],
+            },
+            {
+                "id": "T006",
+                "owner": "progression",
+                "title": "Define progression and save schema",
+                "inputs": ["docs/ACCEPTANCE.md"],
+                "outputs": ["docs/PROGRESSION_SCHEMA.yaml", "docs/SAVE_POLICY.md"],
+                "dependencies": ["T001"],
+            },
+            {
+                "id": "T007",
+                "owner": "analytics",
+                "title": "Define analytics event contract and KPIs",
+                "inputs": ["ui/flows.md", "docs/ACCEPTANCE.md"],
+                "outputs": ["qa/ANALYTICS_EVENTS.yaml", "docs/KPI_DASHBOARD.md"],
+                "dependencies": ["T001"],
+            },
+            {
+                "id": "T008",
+                "owner": "balance",
+                "title": "Build balance matrix and playtest script",
+                "inputs": ["ui/flows.md"],
+                "outputs": ["docs/BALANCE_MATRIX.yaml", "qa/PLAYTEST_SCRIPT.md"],
+                "dependencies": ["T001"],
+            },
+            {
+                "id": "T009",
+                "owner": "release",
+                "title": "Prepare release plan and go/no-go checklist",
+                "inputs": ["docs/ACCEPTANCE.md", "qa/TEST_PLAN.md"],
+                "outputs": ["docs/RELEASE_PLAN.md", "qa/GO_NO_GO_CHECKLIST.md"],
+                "dependencies": ["T004"],
+            },
+            {
+                "id": "T010",
+                "owner": "unity",
+                "title": "Generate Unity-focused implementation patch",
+                "inputs": ["ui/screens.md", "docs/ACCEPTANCE.md"],
+                "outputs": ["patches/unity_changes.patch"],
+                "dependencies": ["T001", "T006"],
+            },
+            {
+                "id": "T011",
                 "owner": "coder",
                 "title": "Create first playable task patch",
                 "inputs": ["docs/TASKS.yaml", "docs/ACCEPTANCE.md", "ui/screens.md"],
                 "outputs": ["patches/changes.patch"],
-                "dependencies": ["T001", "T004"],
+                "dependencies": ["T001", "T004", "T005", "T006"],
             },
         ]
     }
@@ -254,6 +329,120 @@ def _template_release_checklist() -> str:
 """
 
 
+def _template_monetization_plan() -> str:
+    return """# Monetization Plan
+- Rewarded ad: continue option after fail, optional booster reward.
+- Interstitial: capped frequency with cooldown and session limits.
+- IAP: remove_ads, starter_pack, coin_pack_small.
+- Fallback: ad-unavailable path must preserve gameplay continuity.
+"""
+
+
+def _template_monetization_states_yaml() -> str:
+    states = {
+        "states": [
+            {"id": "ad_ready", "transitions": ["ad_showing", "ad_failed"]},
+            {"id": "ad_showing", "transitions": ["ad_rewarded", "ad_closed"]},
+            {"id": "ad_failed", "transitions": ["fallback_retry"]},
+            {"id": "iap_pending", "transitions": ["iap_success", "iap_cancel", "iap_error"]},
+        ]
+    }
+    return yaml.safe_dump(states, allow_unicode=True, sort_keys=False)
+
+
+def _template_progression_schema_yaml() -> str:
+    schema = {
+        "version": 1,
+        "profile": {"coins": 0, "best_score": 0, "remove_ads": False},
+        "progression": {"pet_level": 1, "xp": 0, "unlocked_features": []},
+    }
+    return yaml.safe_dump(schema, allow_unicode=True, sort_keys=False)
+
+
+def _template_save_policy_md() -> str:
+    return """# Save Policy
+- Save on run end, purchase success, and settings change.
+- Include version and migration map for future schema updates.
+- On corruption: backup previous file, reset to defaults, and notify user.
+"""
+
+
+def _template_analytics_events_yaml() -> str:
+    events = {
+        "events": [
+            {"name": "session_start", "props": ["platform", "app_version"]},
+            {"name": "run_start", "props": ["run_id", "pet_level"]},
+            {"name": "run_end", "props": ["run_id", "score", "duration_sec"]},
+            {"name": "reward_ad_complete", "props": ["placement", "reward_type"]},
+            {"name": "iap_success", "props": ["product_id", "price", "currency"]},
+        ]
+    }
+    return yaml.safe_dump(events, allow_unicode=True, sort_keys=False)
+
+
+def _template_kpi_dashboard_md() -> str:
+    return """# KPI Dashboard
+- Retention: D1, D7
+- Engagement: sessions/day, average run duration
+- Monetization: ARPDAU, ad watch rate, IAP conversion
+- Stability: crash-free sessions, failed purchase rate
+"""
+
+
+def _template_balance_matrix_yaml() -> str:
+    matrix = {
+        "params": [
+            {"name": "base_speed", "default": 1.0, "range": [0.8, 1.4]},
+            {"name": "obstacle_density", "default": 1.0, "range": [0.7, 1.5]},
+            {"name": "coin_spawn_rate", "default": 1.0, "range": [0.6, 1.6]},
+        ]
+    }
+    return yaml.safe_dump(matrix, allow_unicode=True, sort_keys=False)
+
+
+def _template_playtest_script_md() -> str:
+    return """# Playtest Script
+1. 10-minute first-time-user run with no tutorial hints.
+2. Capture fail points and confusion events.
+3. Test reward-ad continue acceptance rate.
+4. Record perceived difficulty (1-5) after 3 runs.
+"""
+
+
+def _template_release_plan_md() -> str:
+    return """# Release Plan
+- Stage 1: internal QA build
+- Stage 2: closed test rollout (10%)
+- Stage 3: open rollout (50%)
+- Stage 4: full rollout (100%)
+- Rollback trigger: crash-free < 98.5% or purchase failure > 3%
+"""
+
+
+def _template_go_no_go_md() -> str:
+    return """# Go/No-Go Checklist
+- [ ] Core loop smoke test pass
+- [ ] Ads and IAP paths validated
+- [ ] Analytics events emitted as expected
+- [ ] No blocker bugs open
+- [ ] Rollback package prepared
+"""
+
+
+def _template_unity_patch() -> str:
+    return """diff --git a/unity/Assets/Scripts/README_UNITY_TASK.txt b/unity/Assets/Scripts/README_UNITY_TASK.txt
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/unity/Assets/Scripts/README_UNITY_TASK.txt
+@@ -0,0 +1,4 @@
++Unity implementation task placeholder
++- Integrate one gameplay/system task per patch
++- Keep scenes and scripts deterministic
++- Validate in Play mode before commit
+"""
+
+
 def _template_patch() -> str:
     return """diff --git a/orchestrator/local_first_task.txt b/orchestrator/local_first_task.txt
 new file mode 100644
@@ -297,6 +486,28 @@ def _local_content_for_output(rel_path: str, game_request: str, task: Dict) -> s
         return _template_release_checklist()
     if path == "patches/changes.patch":
         return _template_patch()
+    if path == "docs/MONETIZATION_PLAN.md":
+        return _template_monetization_plan()
+    if path == "docs/MONETIZATION_STATES.yaml":
+        return _template_monetization_states_yaml()
+    if path == "docs/PROGRESSION_SCHEMA.yaml":
+        return _template_progression_schema_yaml()
+    if path == "docs/SAVE_POLICY.md":
+        return _template_save_policy_md()
+    if path == "qa/ANALYTICS_EVENTS.yaml":
+        return _template_analytics_events_yaml()
+    if path == "docs/KPI_DASHBOARD.md":
+        return _template_kpi_dashboard_md()
+    if path == "docs/BALANCE_MATRIX.yaml":
+        return _template_balance_matrix_yaml()
+    if path == "qa/PLAYTEST_SCRIPT.md":
+        return _template_playtest_script_md()
+    if path == "docs/RELEASE_PLAN.md":
+        return _template_release_plan_md()
+    if path == "qa/GO_NO_GO_CHECKLIST.md":
+        return _template_go_no_go_md()
+    if path == "patches/unity_changes.patch":
+        return _template_unity_patch()
 
     if path.endswith(".json"):
         return "{}\n"
@@ -442,6 +653,7 @@ User request:
 Task:
 - id: {task["id"]}
 - owner: {owner}
+- skill_owner: {OWNER_SKILLS.get(owner, "n/a")}
 - title: {task_title}
 - dependencies: {task["dependencies"]}
 - inputs: {task["inputs"]}

@@ -1,0 +1,17 @@
+states:
+- id: ad_ready
+  transitions:
+  - ad_showing
+  - ad_failed
+- id: ad_showing
+  transitions:
+  - ad_rewarded
+  - ad_closed
+- id: ad_failed
+  transitions:
+  - fallback_retry
+- id: iap_pending
+  transitions:
+  - iap_success
+  - iap_cancel
+  - iap_error

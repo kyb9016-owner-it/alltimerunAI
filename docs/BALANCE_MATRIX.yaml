@@ -1,0 +1,16 @@
+params:
+- name: base_speed
+  default: 1.0
+  range:
+  - 0.8
+  - 1.4
+- name: obstacle_density
+  default: 1.0
+  range:
+  - 0.7
+  - 1.5
+- name: coin_spawn_rate
+  default: 1.0
+  range:
+  - 0.6
+  - 1.6

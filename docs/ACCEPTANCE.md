@@ -1,5 +1,5 @@
 # Scope
-- Mobile 2D casual game based on: 게임 만들어줘: ai를키우는 게임 모바일 2D, 광고+인앱결제
+- Mobile 2D casual game based on: 스킬 확장 검증
 - Core loop: start run -> interact/collect -> fail/success -> rewards -> retry.
 - Monetization: rewarded ads, interstitial ads, and IAP.
 - Deliverables: task plan, UI specs, art/story/QA docs, and first-task patch.

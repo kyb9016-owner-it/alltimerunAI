@@ -1,0 +1,10 @@
+diff --git a/unity/Assets/Scripts/README_UNITY_TASK.txt b/unity/Assets/Scripts/README_UNITY_TASK.txt
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/unity/Assets/Scripts/README_UNITY_TASK.txt
+@@ -0,0 +1,4 @@
++Unity implementation task placeholder
++- Integrate one gameplay/system task per patch
++- Keep scenes and scripts deterministic
++- Validate in Play mode before commit
