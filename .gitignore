@@ -34,3 +34,6 @@ __pycache__/
 
 # Local Unity workspace folder in this repo
 My project/
+
+# 에디터 도구 스킬 (재설치 가능)
+.agents/

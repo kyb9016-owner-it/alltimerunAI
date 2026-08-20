@@ -1,11 +1,391 @@
-diff --git a/orchestrator/local_first_task.txt b/orchestrator/local_first_task.txt
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/orchestrator/local_first_task.txt
-@@ -0,0 +1,5 @@
-+First playable task scaffold (local template mode)
-+- Define state: HOME -> RUNNING -> RESULT
-+- Track score and retry count
-+- Add one smoke test entry in qa plan
-+- Replace this scaffold with production diff in API mode
+diff --git a/orchestrator/game_state.py b/orchestrator/game_state.py
+index 9ebd06d..b4c29f4 100644
+--- a/orchestrator/game_state.py
++++ b/orchestrator/game_state.py
+@@ -1,5 +1,7 @@
+ from dataclasses import dataclass
++from dataclasses import field
+ from enum import Enum
++import random
+ 
+ 
+ class RunState(str, Enum):
+@@ -15,10 +17,53 @@ class GameSession:
+     score: int = 0
+     best_score: int = 0
+     coins: int = 0
++    retry_count: int = 0
++    last_reward: int = 0
++    reward_per_score: float = 0.2
++    tick_count: int = 0
++
++    energy: float = 50.0
++    energy_max: float = 50.0
++    data: float = 0.0
++    money: float = 0.0
++
++    level: int = 1
++    xp: float = 0.0
++    intelligence_mult: float = 1.0
++    optimization_bonus: float = 0.0
++
++    energy_gen_per_tick: float = 2.0
++    learn_energy_cost: float = 1.5
++    base_data_per_tick: float = 3.0
++    base_money_per_tick: float = 0.8
++    base_event_chance: float = 0.03
++    event_risk_mult: float = 1.0
++    stability: float = 1.0
++    firewall_level: int = 0
++    stage: str = "Core"
++    is_proto_human: bool = False
++    last_event: str = ""
++    generator_level: int = 0
++    battery_level: int = 0
++    model_training_level: int = 0
++    optimization_level: int = 0
++    stability_level: int = 0
++    max_upgrade_level: int = 5
++
++    forced_event_rolls: list[float] = field(default_factory=list)
++    forced_event_types: list[str] = field(default_factory=list)
++    generator_costs: list[float] = field(default_factory=lambda: [30, 80, 160, 300, 500])
++    battery_costs: list[float] = field(default_factory=lambda: [20, 60, 120, 220, 380])
++    model_training_costs: list[float] = field(default_factory=lambda: [40, 120, 250, 450, 700])
++    optimization_costs: list[float] = field(default_factory=lambda: [60, 160, 330, 600, 900])
++    ops_costs: list[float] = field(default_factory=lambda: [50, 140, 300, 520, 800])
+ 
+     def start_run(self) -> None:
++        if self.state == RunState.RUNNING:
++            return
+         self.state = RunState.RUNNING
+         self.score = 0
++        self.last_reward = 0
+ 
+     def add_score(self, value: int) -> None:
+         if self.state != RunState.RUNNING:
+@@ -26,6 +71,162 @@ class GameSession:
+         if value > 0:
+             self.score += value
+ 
++    def xp_to_next_level(self) -> float:
++        return 50.0 + (self.level - 1) * 25.0
++
++    @staticmethod
++    def _clamp01(value: float) -> float:
++        if value < 0:
++            return 0.0
++        if value > 1:
++            return 1.0
++        return value
++
++    def event_chance(self) -> float:
++        stability_reduction = 0.25 * self._clamp01((self.stability - 1.0) / 3.0)
++        return self.base_event_chance * self.event_risk_mult * (1.0 - stability_reduction)
++
++    def _next_event_roll(self) -> float:
++        if self.forced_event_rolls:
++            return self.forced_event_rolls.pop(0)
++        return random.random()
++
++    def _next_event_type(self) -> str:
++        if self.forced_event_types:
++            return self.forced_event_types.pop(0)
++        return random.choice(["ServerOverheat", "SecurityBreach", "EfficiencyBoost"])
++
++    def _apply_event(self, event_type: str) -> None:
++        if event_type == "ServerOverheat":
++            self.energy = max(0.0, self.energy - 20.0)
++        elif event_type == "SecurityBreach":
++            reduced_ratio = min(1.0, max(0.0, self.firewall_level * 0.1))
++            damage = 50.0 * (1.0 - reduced_ratio)
++            self.money = max(0.0, self.money - damage)
++        elif event_type == "EfficiencyBoost":
++            self.intelligence_mult += 0.05
++        else:
++            return
++        self.last_event = event_type
++
++    def _process_evolution(self) -> None:
++        if self.is_proto_human:
++            return
++        if self.level < 10:
++            return
++        if self.data < 2500.0:
++            return
++        if self.money < 1500.0:
++            return
++
++        self.is_proto_human = True
++        self.stage = "ProtoHuman"
++        self.intelligence_mult *= 1.25
++        self.event_risk_mult *= 1.1
++
++    def _try_pay(self, cost: float) -> bool:
++        if self.money < cost:
++            return False
++        self.money -= cost
++        return True
++
++    def upgrade(self, name: str) -> bool:
++        if name == "Generator":
++            if self.generator_level >= self.max_upgrade_level:
++                return False
++            cost = self.generator_costs[self.generator_level]
++            if not self._try_pay(cost):
++                return False
++            self.generator_level += 1
++            self.energy_gen_per_tick += 0.6
++            return True
++
++        if name == "Battery":
++            if self.battery_level >= self.max_upgrade_level:
++                return False
++            cost = self.battery_costs[self.battery_level]
++            if not self._try_pay(cost):
++                return False
++            self.battery_level += 1
++            self.energy_max += 10.0
++            self.energy = min(self.energy_max, self.energy + 10.0)
++            return True
++
++        if name == "ModelTraining":
++            if self.model_training_level >= self.max_upgrade_level:
++                return False
++            cost = self.model_training_costs[self.model_training_level]
++            if not self._try_pay(cost):
++                return False
++            self.model_training_level += 1
++            self.base_data_per_tick += 0.8
++            return True
++
++        if name == "Optimization":
++            if self.optimization_level >= self.max_upgrade_level:
++                return False
++            cost = self.optimization_costs[self.optimization_level]
++            if not self._try_pay(cost):
++                return False
++            self.optimization_level += 1
++            self.optimization_bonus += 0.06
++            return True
++
++        if name == "Stability":
++            if self.stability_level >= self.max_upgrade_level:
++                return False
++            cost = self.ops_costs[self.stability_level]
++            if not self._try_pay(cost):
++                return False
++            self.stability_level += 1
++            self.stability += 0.5
++            return True
++
++        if name == "Firewall":
++            if self.firewall_level >= self.max_upgrade_level:
++                return False
++            cost = self.ops_costs[self.firewall_level]
++            if not self._try_pay(cost):
++                return False
++            self.firewall_level += 1
++            return True
++
++        return False
++
++    def tick(self, ticks: int = 1) -> None:
++        if self.state != RunState.RUNNING:
++            return
++        if ticks <= 0:
++            return
++
++        for _ in range(ticks):
++            self.tick_count += 1
++
++            self.energy = min(self.energy_max, self.energy + self.energy_gen_per_tick)
++            if self.energy >= self.learn_energy_cost:
++                self.energy -= self.learn_energy_cost
++                data_generated = (
++                    self.base_data_per_tick
++                    * self.intelligence_mult
++                    * (1.0 + self.optimization_bonus)
++                )
++                money_generated = self.base_money_per_tick * self.intelligence_mult
++
++                self.data += data_generated
++                self.money += money_generated
++                self.xp += data_generated * 0.25
++                self.score += int(data_generated)
++
++                while self.xp >= self.xp_to_next_level():
++                    self.xp -= self.xp_to_next_level()
++                    self.level += 1
++                    self.intelligence_mult += 0.04
++
++            if self._next_event_roll() < self.event_chance():
++                self._apply_event(self._next_event_type())
++
++            self._process_evolution()
++
+     def fail(self) -> None:
+         if self.state != RunState.RUNNING:
+             return
+@@ -36,6 +237,9 @@ class GameSession:
+             return
+         self.state = RunState.RESULT
+         self.best_score = max(self.best_score, self.score)
++        self.last_reward = int(self.score * self.reward_per_score)
++        self.coins += self.last_reward
+ 
+     def retry(self) -> None:
++        self.retry_count += 1
+         self.start_run()
+diff --git a/qa/test_game_state.py b/qa/test_game_state.py
+index d65f775..1310cc4 100644
+--- a/qa/test_game_state.py
++++ b/qa/test_game_state.py
+@@ -13,10 +13,147 @@ def test_run_loop_retry_updates_best_score():
+     assert s.state == RunState.RESULT
+     assert s.score == 20
+     assert s.best_score == 20
++    assert s.last_reward == 4
++    assert s.coins == 4
+ 
+     s.retry()
+     assert s.state == RunState.RUNNING
+     assert s.score == 0
++    assert s.retry_count == 1
+     s.add_score(5)
+     s.finalize_run()
+     assert s.best_score == 20
++    assert s.last_reward == 1
++    assert s.coins == 5
++
++
++def test_score_updates_only_during_running_state():
++    s = GameSession()
++    s.add_score(10)
++    assert s.score == 0
++
++    s.start_run()
++    s.add_score(10)
++    assert s.score == 10
++
++    s.fail()
++    s.add_score(5)
++    assert s.score == 10
++
++
++def test_tick_generates_resources_and_score():
++    s = GameSession()
++    s.start_run()
++    s.tick()
++
++    assert s.tick_count == 1
++    assert round(s.energy, 4) == 48.5
++    assert round(s.data, 4) == 3.0
++    assert round(s.money, 4) == 0.8
++    assert round(s.xp, 4) == 0.75
++    assert s.score == 3
++
++
++def test_tick_levels_up_when_xp_reaches_threshold():
++    s = GameSession(xp=49.5)
++    s.start_run()
++    s.tick()
++
++    assert s.level == 2
++    assert round(s.intelligence_mult, 4) == 1.04
++    assert round(s.xp, 4) == 0.25
++
++
++def test_tick_skips_learning_when_energy_insufficient():
++    s = GameSession(energy=0.0, energy_gen_per_tick=0.5, learn_energy_cost=2.0)
++    s.start_run()
++    s.tick()
++
++    assert s.tick_count == 1
++    assert s.energy == 0.5
++    assert s.data == 0.0
++    assert s.money == 0.0
++    assert s.xp == 0.0
++    assert s.score == 0
++
++
++def test_server_overheat_event_reduces_energy():
++    s = GameSession(
++        energy=20.0,
++        energy_gen_per_tick=0.0,
++        learn_energy_cost=100.0,
++        forced_event_rolls=[0.0],
++        forced_event_types=["ServerOverheat"],
++    )
++    s.start_run()
++    s.tick()
++
++    assert s.last_event == "ServerOverheat"
++    assert s.energy == 0.0
++
++
++def test_security_breach_event_respects_firewall_level():
++    s = GameSession(
++        money=100.0,
++        firewall_level=2,
++        energy_gen_per_tick=0.0,
++        learn_energy_cost=100.0,
++        forced_event_rolls=[0.0],
++        forced_event_types=["SecurityBreach"],
++    )
++    s.start_run()
++    s.tick()
++
++    assert s.last_event == "SecurityBreach"
++    assert s.money == 60.0
++
++
++def test_evolution_changes_stage_and_risk_multiplier():
++    s = GameSession(
++        level=10,
++        data=2500.0,
++        money=1500.0,
++        intelligence_mult=1.0,
++        event_risk_mult=1.0,
++        energy_gen_per_tick=0.0,
++        learn_energy_cost=100.0,
++        forced_event_rolls=[1.0],
++    )
++    s.start_run()
++    s.tick()
++
++    assert s.is_proto_human is True
++    assert s.stage == "ProtoHuman"
++    assert round(s.intelligence_mult, 4) == 1.25
++    assert round(s.event_risk_mult, 4) == 1.1
++
++
++def test_upgrade_generator_applies_cost_and_stat_bonus():
++    s = GameSession(money=100.0)
++    ok = s.upgrade("Generator")
++
++    assert ok is True
++    assert s.generator_level == 1
++    assert s.money == 70.0
++    assert round(s.energy_gen_per_tick, 4) == 2.6
++
++
++def test_upgrade_fails_when_insufficient_money_or_max_level():
++    s = GameSession(money=10.0)
++    assert s.upgrade("Battery") is False
++    assert s.battery_level == 0
++
++    s2 = GameSession(money=99999.0)
++    for _ in range(5):
++        assert s2.upgrade("Firewall") is True
++    assert s2.upgrade("Firewall") is False
++    assert s2.firewall_level == 5
++
++
++def test_stability_upgrade_reduces_event_chance():
++    s = GameSession(money=1000.0)
++    before = s.event_chance()
++    assert s.upgrade("Stability") is True
++    after = s.event_chance()
++
++    assert after < before

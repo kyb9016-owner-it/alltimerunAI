@@ -1,17 +1,127 @@
-states:
-- id: ad_ready
-  transitions:
-  - ad_showing
-  - ad_failed
-- id: ad_showing
-  transitions:
-  - ad_rewarded
-  - ad_closed
-- id: ad_failed
-  transitions:
-  - fallback_retry
-- id: iap_pending
-  transitions:
-  - iap_success
-  - iap_cancel
-  - iap_error
+version: 1
+provider_agnostic: true
+
+caps:
+  interstitial:
+    cooldown_sec: 150
+    max_per_session: 2
+    max_per_day: 8
+    blocked_first_runs_per_day: 2
+  rewarded:
+    max_per_run_revive: 1
+    max_per_run_x2: 1
+    max_per_day_shared: 6
+  offers:
+    min_interval_sec: 600
+
+ad_state_machine:
+  rewarded_revive:
+    initial: eligible_check
+    states:
+      - id: eligible_check
+        on:
+          cap_pass: request
+          cap_blocked: fallback_continue
+      - id: request
+        on:
+          ad_ready: showing
+          ad_unavailable: fallback_continue
+          ad_error: fallback_continue
+      - id: showing
+        on:
+          rewarded: apply_revive
+          closed_unrewarded: fallback_continue
+          show_error: fallback_continue
+      - id: apply_revive
+        on:
+          applied: resume_run
+      - id: fallback_continue
+        action: grant_small_currency_and_retry_option
+      - id: resume_run
+
+  rewarded_x2:
+    initial: eligible_check
+    states:
+      - id: eligible_check
+        on:
+          cap_pass: request
+          cap_blocked: fallback_base_reward
+      - id: request
+        on:
+          ad_ready: showing
+          ad_unavailable: fallback_base_reward
+          ad_error: fallback_base_reward
+      - id: showing
+        on:
+          rewarded: apply_x2
+          closed_unrewarded: fallback_base_reward
+          show_error: fallback_base_reward
+      - id: apply_x2
+        on:
+          applied: grant_rewards
+      - id: fallback_base_reward
+        action: grant_base_reward_only
+      - id: grant_rewards
+
+  interstitial:
+    initial: end_run_check
+    states:
+      - id: end_run_check
+        on:
+          eligible: request
+          blocked: skip
+      - id: request
+        on:
+          ad_ready: showing
+          ad_unavailable: skip
+          ad_error: skip
+      - id: showing
+        on:
+          closed: next_screen
+          show_error: next_screen
+      - id: skip
+      - id: next_screen
+
+iap_state_machine:
+  initial: offer_shown
+  states:
+    - id: offer_shown
+      on:
+        buy_tap: purchase_pending
+        dismiss: no_purchase_continue
+    - id: purchase_pending
+      on:
+        purchase_success: grant_entitlement
+        purchase_cancel: no_purchase_continue
+        purchase_error: error_recover
+    - id: grant_entitlement
+      on:
+        entitlement_applied: post_purchase_continue
+    - id: error_recover
+      action: restore_context_without_penalty
+      on:
+        recovered: no_purchase_continue
+    - id: no_purchase_continue
+    - id: post_purchase_continue
+
+offer_targeting:
+  first_offer:
+    trigger: day_1_run_3_end
+    offer_id: starter_pack
+  remove_ads_prompt:
+    trigger: interstitial_views_gte_3_and_sessions_gte_2
+    offer_id: remove_ads
+  weekly_pack_prompts:
+    triggers:
+      - day_3_milestone
+      - day_7_milestone
+      - day_10_milestone
+    offer_id: weekly_value_pack
+
+telemetry_events:
+  - ad_attempt
+  - ad_result
+  - offer_impression
+  - offer_click
+  - purchase_start
+  - purchase_result

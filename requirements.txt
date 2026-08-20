@@ -1,0 +1,7 @@
+# Orchestrator / main.py
+pyyaml>=6.0
+openai>=1.0
+rich>=13.0
+
+# QA
+pytest>=7.0
